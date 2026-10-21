@@ -1,0 +1,13 @@
+com\fynixdev\utils\Utils$Point.class
+com\fynixdev\Game\neuralnetwork\Neuron.class
+com\fynixdev\Game\neuralnetwork\activationfunction\ReLU.class
+com\fynixdev\Game\Car\Car.class
+com\fynixdev\utils\Utils.class
+com\fynixdev\Game\neuralnetwork\Layer.class
+com\fynixdev\Game\neuralnetwork\activationfunction\Linear.class
+com\fynixdev\Game\road\Road.class
+com\fynixdev\Game\neuralnetwork\NeuralNetwork.class
+com\fynixdev\Game\neuralnetwork\activationfunction\ActivationFunction.class
+com\fynixdev\Main.class
+com\fynixdev\Game\sensor\Sensor.class
+com\fynixdev\Game\Game.class
