@@ -1,7 +1,6 @@
 package com.fynixdev.Game.Car;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import com.fynixdev.Game.neuralnetwork.Layer;
@@ -13,11 +12,11 @@ import com.fynixdev.utils.Utils;
 
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.paint.Color;
-import javafx.scene.shape.Polygon;
 
 public class Car {
     public double speed;
     public double x, y, angle;
+    public double intiX, intiY;
     private double acceleration, friction, rotationAngle = 0.5, rotationSpeed = 2.0;
     public String type;
     public int width, height, maxSpeed;
@@ -28,13 +27,15 @@ public class Car {
     private double[] yPoints;
     // private Polygon polygon;
     private boolean printable = true;
-    private NeuralNetwork brain;
+    public NeuralNetwork brain;
     public double[] predictedOutputs = new double[]{0, 0, 0, 0};
     public int predictedActionIndex = 0;
 
     public Car(double x, double y, int width, int height, int maxSpeed, String type) {
         this.x = x;
         this.y = y;
+        this.intiX = x;
+        this.intiY = y;
         this.width = width;
         this.height = height;
         this.type = type;
@@ -52,23 +53,24 @@ public class Car {
             Layer inputLayer = new Layer(this.sensor.rayCount, 6, new Linear());
             Layer hiddenLayer = new Layer(6, 6, new ReLU());
             Layer outputLayer = new Layer(4, 6, new ReLU());
-            brain = new NeuralNetwork();
+            brain = new NeuralNetwork(0.0);
             brain.addLayer(inputLayer);
             brain.addLayer(hiddenLayer);
             brain.addLayer(outputLayer);
         }
     }
 
-    public void draw(GraphicsContext gc, List<List<Utils.Point>> borders, Car[] traffic) {
+    public void draw(GraphicsContext gc, List<List<Utils.Point>> borders, Car[] traffic, boolean drawSensor, boolean transparent) {
         // save
         gc.save();
         
         //draw
+        gc.setGlobalAlpha(transparent ? 0.2 : 1.0);
         gc.setFill(isDamaged ? Color.BLACK : "CAR".equals(this.type) ? Color.RED : Color.BLUE);
         gc.setStroke(Color.BLACK);
         gc.fillPolygon(this.xPoints, this.yPoints, 4);
 
-        if("CAR".equals(this.type)){
+        if("CAR".equals(this.type) && drawSensor){
             this.sensor.draw(gc);
         }
         // restore
@@ -82,7 +84,7 @@ public class Car {
         if(down == 1){
             this.speed -= this.acceleration;
         }
-        //if(this.speed != 0){
+        if(this.speed != 0){
             int flip = speed > 0 ? 1 : -1;
             if(left == 1){
                 this.angle -= this.rotationAngle * flip;
@@ -90,7 +92,7 @@ public class Car {
             if(right == 1){
                 this.angle += this.rotationAngle * flip;
             }
-        //}
+        }
 
         // check few conditions to follow the physics of the car
         if(this.speed > this.maxSpeed){
@@ -109,8 +111,6 @@ public class Car {
         this.x -= Math.sin(angleRadians) * this.speed;
         this.y -= Math.cos(angleRadians) * this.speed;
     }
-
-    
 
     public void update(int x, int y, List<List<Utils.Point>> borders, Car[] traffic){
         if("CAR".equals(this.type)){
@@ -146,6 +146,9 @@ public class Car {
     }
 
     private boolean assessDamage(List<List<Utils.Point>> borders, Car[] traffic){
+        if(isDamaged){
+            return true;
+        }
         // detect collision with border
         for(int i = 0; i < borders.size(); i++){
             for(int j = 0; j < polygonPoints.size(); j++){
@@ -210,8 +213,22 @@ public class Car {
         xPoints = polygonPoints.stream().mapToDouble(p -> p.get(0).x()).toArray();
         yPoints = polygonPoints.stream().mapToDouble(p -> p.get(0).y()).toArray();
         if(printable){
-            System.out.println("PolygonPoints: " + polygonPoints);
             printable = false;
         }
+    }
+
+    public void reset(){
+        this.speed = 0;
+        this.x = intiX;
+        this.y = intiY;
+        this.angle = 0;
+        this.isDamaged = false;
+        if("CAR".equals(this.type)){
+            sensor.reset();
+        }
+    }
+
+    public boolean isAlive(){
+        return !isDamaged;
     }
 }

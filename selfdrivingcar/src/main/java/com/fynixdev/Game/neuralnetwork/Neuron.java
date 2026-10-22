@@ -3,8 +3,9 @@ package com.fynixdev.Game.neuralnetwork;
 import java.util.Arrays;
 
 import com.fynixdev.Game.neuralnetwork.activationfunction.ActivationFunction;
+import com.fynixdev.utils.Utils;
 
-public class Neuron {
+public class Neuron implements java.io.Serializable {
     double[] weights;
     double bias, output;
     ActivationFunction activationFunction;
@@ -26,4 +27,12 @@ public class Neuron {
         this.output =  activationFunction.activate(sum);
         return output;
     }
+
+    public void mutate(double mutationRate){
+        for(int i = 0; i < weights.length; i++){
+            weights[i] = Utils.lerp(weights[i], Math.random() * 2 - 1, mutationRate);
+        }
+        bias = Utils.lerp(bias, Math.random() * 2 - 1, mutationRate);
+    }
+
 }

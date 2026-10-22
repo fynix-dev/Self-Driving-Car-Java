@@ -134,4 +134,9 @@ public class Sensor {
             }
         }
     }
+
+    public void reset(){
+        rays.clear();
+        readings.clear();
+    }
 }

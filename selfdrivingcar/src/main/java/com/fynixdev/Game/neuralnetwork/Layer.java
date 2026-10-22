@@ -2,7 +2,7 @@ package com.fynixdev.Game.neuralnetwork;
 
 import com.fynixdev.Game.neuralnetwork.activationfunction.ActivationFunction;
 
-public class Layer {
+public class Layer implements java.io.Serializable {
     Neuron[] neurons;
     double[] outputs;
     ActivationFunction activationFunction;
@@ -22,4 +22,11 @@ public class Layer {
         }
         return outputs;
     }
+
+    public void mutate(double mutationRate){
+        for(Neuron neuron: neurons){
+            neuron.mutate(mutationRate);
+        }
+    }
+
 }
