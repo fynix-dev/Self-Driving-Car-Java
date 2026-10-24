@@ -29,4 +29,10 @@ public class Layer implements java.io.Serializable {
         }
     }
 
+    public void copy(Layer other){
+        for(int i = 0; i < neurons.length; i++){
+            this.neurons[i].copy(other.neurons[i]);
+        }
+    }
+
 }

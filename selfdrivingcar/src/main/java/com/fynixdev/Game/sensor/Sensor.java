@@ -45,6 +45,7 @@ public class Sensor {
 
     private void getReadings(List<List<Utils.Point>> borders, Car[] traffic){
         readings.clear();
+        car.hasDetectedCar = false;
 
         // loop for each ray
         for (int i = 0; i < rays.size(); i++) {
@@ -68,21 +69,23 @@ public class Sensor {
             }
             
             if(traffic != null){
-                // loop for traffic cars
-                for(Car car: traffic){
-                    if(car.polygonPoints.size() < 2){
+                // loop for traffic car
+                for(Car trafficCar: traffic){
+                    if(trafficCar.polygonPoints.size() < 2){
                         continue;
                     }
                     // loop for each point in polypoints of traffic
-                    for(int j = 0; j < car.polygonPoints.size(); j++){
+                    for(int j = 0; j < trafficCar.polygonPoints.size(); j++){
                         double[] intersection = Utils.getIntersection(
                             rayStart,
                             rayEnd,
-                            car.polygonPoints.get(j).get(0),
-                            car.polygonPoints.get((j + 1) % car.polygonPoints.size()).get(0)
+                            trafficCar.polygonPoints.get(j).get(0),
+                            trafficCar.polygonPoints.get((j + 1) % trafficCar.polygonPoints.size()).get(0)
                         );
                         if (intersection != null && (reading == null || intersection[2] < reading[2])) {
                             reading = intersection;
+                            this.car.hasDetectedCar = true;
+                            this.car.detectedCar = trafficCar;
                         }
                     }
                 }

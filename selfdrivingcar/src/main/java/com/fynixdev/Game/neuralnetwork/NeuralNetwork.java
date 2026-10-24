@@ -28,4 +28,10 @@ public class NeuralNetwork implements java.io.Serializable{
         }
     }
 
+    public void copy(NeuralNetwork other){
+        for(int i = 0; i < layers.size(); i++){
+            this.layers.get(i).copy(other.layers.get(i));
+        }
+    }
+
 }

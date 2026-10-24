@@ -30,6 +30,11 @@ public class Car {
     public NeuralNetwork brain;
     public double[] predictedOutputs = new double[]{0, 0, 0, 0};
     public int predictedActionIndex = 0;
+    public boolean hasDetectedCar = false;
+    public Car detectedCar = null;
+    public boolean laneChangeStarted = false, crashPenaltyApplied = false;
+    public int waitingStartTime = -1;
+    public double distanceTravelled = 0.0;
 
     public Car(double x, double y, int width, int height, int maxSpeed, String type) {
         this.x = x;
@@ -51,11 +56,13 @@ public class Car {
             
             // create the model structure
             Layer inputLayer = new Layer(this.sensor.rayCount, 6, new Linear());
-            Layer hiddenLayer = new Layer(6, 6, new ReLU());
+            Layer hiddenLayer1 = new Layer(6, 6, new ReLU());
+            Layer hiddenLayer2 = new Layer(6, 6, new ReLU());
             Layer outputLayer = new Layer(4, 6, new ReLU());
             brain = new NeuralNetwork(0.0);
             brain.addLayer(inputLayer);
-            brain.addLayer(hiddenLayer);
+            brain.addLayer(hiddenLayer1);
+            brain.addLayer(hiddenLayer2);
             brain.addLayer(outputLayer);
         }
     }
@@ -130,6 +137,9 @@ public class Car {
                     bestActionIndex == 2 ? 1 : 0,
                     bestActionIndex == 3 ? 1 : 0
                 );
+            }
+            if(this.speed > 0){
+                distanceTravelled += 0.1;
             }
         } else if("DUMMY".equals(this.type)){
             move(1, 0, 0, 0);
@@ -217,10 +227,10 @@ public class Car {
         }
     }
 
-    public void reset(){
+    public void reset(Double x, Double y){
         this.speed = 0;
-        this.x = intiX;
-        this.y = intiY;
+        this.x = x == null ? intiX : x;
+        this.y = y == null ? intiY : y;
         this.angle = 0;
         this.isDamaged = false;
         if("CAR".equals(this.type)){

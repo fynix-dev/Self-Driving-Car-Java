@@ -28,11 +28,29 @@ public class Neuron implements java.io.Serializable {
         return output;
     }
 
-    public void mutate(double mutationRate){
-        for(int i = 0; i < weights.length; i++){
-            weights[i] = Utils.lerp(weights[i], Math.random() * 2 - 1, mutationRate);
+    // public void mutate(double mutationRate){
+    //     for(int i = 0; i < weights.length; i++){
+    //         weights[i] = Utils.lerp(weights[i], Math.random() * 2 - 1, mutationRate);
+    //     }
+    //     bias = Utils.lerp(bias, Math.random() * 2 - 1, mutationRate);
+    // }
+
+    public void mutate(double mutationRate) {
+        for (int i = 0; i < weights.length; i++) {
+            if (Math.random() < mutationRate) {
+                weights[i] += Math.random() * 0.4 - 0.2;
+            }
         }
-        bias = Utils.lerp(bias, Math.random() * 2 - 1, mutationRate);
+
+        if (Math.random() < mutationRate) {
+            bias += Math.random() * 0.4 - 0.2;
+        }
+    }
+
+    public void copy(Neuron other){
+        this.weights = Arrays.copyOf(other.weights, other.weights.length);
+        this.bias = other.bias;
+        this.activationFunction = other.activationFunction;
     }
 
 }

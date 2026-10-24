@@ -6,20 +6,19 @@ import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.Set;
 
 import com.fynixdev.Game.Car.Car;
 import com.fynixdev.Game.neuralnetwork.NeuralNetwork;
 import com.fynixdev.Game.road.Road;
+import com.fynixdev.utils.Utils;
 
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.geometry.Insets;
-import javafx.scene.Group;
 import javafx.scene.Scene;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -40,10 +39,11 @@ public class Game extends Application {
     private Road road;
     private Set<KeyCode> pressedKeys = EnumSet.noneOf(KeyCode.class);
     private Car[] population;
-    private int populationCount = 20;
+    private int populationCount = 100;
+    private double[] populationFitness = new double[populationCount];
     Car bestCar;
     private int framesInGeneration = 0;
-    private static int MAX_FRAMES_IN_GENERATION = 600;
+    private static int MAX_FRAMES_IN_GENERATION = 3000;
     private boolean allDead;
     private int currentGeneration = 1;
     private int remainingCars = populationCount;
@@ -63,6 +63,9 @@ public class Game extends Application {
     private Button saveButton = new Button("Save");
     private Label remainingCarsLabel = new Label("20/20");
     private Label generationLabel = new Label("Generation: 1");
+    private Label carRewardPointLabel = new Label("Reward Points: 0");
+    private Label carIndexLabel = new Label("Car Index: 0");
+    private Label timeLabel = new Label("Time: 0");
     
     // start method is the main entry point for all JavaFX applications where we create the basic screen
 	@Override
@@ -82,30 +85,28 @@ public class Game extends Application {
         if(isSavedBrainAvailable()){
             NeuralNetwork loadedBrain = loadBrain();
             for(int i = 0; i < population.length; i++){
-                population[i].brain = null;
-                population[i].brain = loadedBrain;
+                population[i].brain.copy(loadedBrain);
                 if(i != 0){
-                    population[i].brain.mutate(0.2);
+                    population[i].brain.mutate(0.4);
                 }
             }
         }
         // traffic
         traffic = new Car[]{
             new Car(road.getLaneCenter(1), -200, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(2), -400, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(0), -600, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(0), -200, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(2), -500, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(0), -800, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(2), -1200, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(1), -1500, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(0), -1800, 50, 100, 2, "DUMMY"),
         };
 
         // initialize UI
         root.getChildren().add(canvas);
         resetButton.setOnAction(e -> {
             // reset the population
-            for(Car car: population){
-                car.reset();
-            }
-            for(Car car: traffic){
-                car.reset();
-            }
+            evolve();
         });
         saveButton.setOnAction(e -> {
             saveBrain(null);
@@ -113,7 +114,7 @@ public class Game extends Application {
 
         remainingCarsLabel.setFont(new Font(16));
         generationLabel.setFont(new Font(20));
-        infoBox.getChildren().addAll(generationLabel, remainingCarsLabel, speedLabel, xLabel, yLabel, angleLabel, predictedActionLabel, controlBox);
+        infoBox.getChildren().addAll(generationLabel, remainingCarsLabel, carIndexLabel, speedLabel, xLabel, yLabel, angleLabel, predictedActionLabel, carRewardPointLabel, timeLabel);
         controlBox.getChildren().addAll(resetButton, saveButton);
         infoBox.setPadding(new Insets(10, 10, 10, 10));
         controlBox.setPadding(new Insets(10, 10, 10, 10));
@@ -137,10 +138,9 @@ public class Game extends Application {
 
             trainingLoop(canvas);
 
-            setUpDisplayInfo(bestCar);
-
+            
             gc.restore();
-
+            
         }));
         timeline.setCycleCount(Animation.INDEFINITE);
         timeline.play();
@@ -156,24 +156,23 @@ public class Game extends Application {
         for(Car car: population){
             car.update(0, 0, road.borders, traffic);
         }
-        // find the best car using min y value
-        bestCar = Arrays.stream(population)
-            .min(Comparator.comparingDouble(car -> car.y))
-            .orElse(population[0]);
-        // if(bestCar.y < prevBestFitness){
-        //     System.out.println("New best fitness: " + bestCar.y);
-        //     prevBestFitness = bestCar.y;
-        // }
+        // update the reward function
+        for(int i = 0; i < populationCount; i++){
+            rewardFunction(population[i]);
+        }
 
+        // find the best car using the reward points, which one has highest points
+        bestCar = population[Utils.softMax(populationFitness)];
+        
         // move the camera with best car
         gc.translate(0, -bestCar.y + canvas.getHeight() * 0.7); // Move the canvas up based on the car's speed
-
+        
         // draw on the canvas
         road.draw(gc);
         for(Car car: traffic){
             car.draw(gc, road.borders, null, false, false);
         }
-        // car.draw(gc, road.borders, traffic);
+  
         for(Car car: population){
             car.draw(gc, road.borders, null, false, true);
         }
@@ -191,7 +190,9 @@ public class Game extends Application {
         
         // increment frames in generation
         framesInGeneration++;
-
+        // set UI info
+        setUpDisplayInfo(bestCar);
+        
         // if all dead or times up then evolve
         if(allDead || (framesInGeneration >= MAX_FRAMES_IN_GENERATION)){
             evolve();
@@ -203,30 +204,36 @@ public class Game extends Application {
         System.out.println("====== Generation " + currentGeneration + " completed ======");
 
         // find the best performing car
-        Car champion = bestCar;
+        int bestCarIndex = Arrays.asList(population).indexOf(bestCar);
 
         // if not saved, then save the new champion
-        if(!isSavedBrainAvailable() || (champion.y < prevBestFitness)){
-            System.out.println("New champion found with fitness: " + champion.brain.bestFitness);
-            champion.brain.bestFitness = champion.y;
-            saveBrain(champion.brain);
+        if(!isSavedBrainAvailable() || (populationFitness[bestCarIndex] > prevBestFitness)){
+            System.out.println("New champion found with fitness: " + populationFitness[bestCarIndex]);
+            population[bestCarIndex].brain.bestFitness = populationFitness[bestCarIndex];
+            saveBrain(population[bestCarIndex].brain);
         }
 
-        // clear and generate new population by mutatuing the brain and reset the position
+        // v1 clear and generate new population by mutatuing the brain and reset the position
+        // v2 clear old, generate some random and some mutated
+        population = generatePopulation(populationCount);
         NeuralNetwork championBrain = loadBrain();
-        population[0].brain = championBrain;
-        for(int i = 0; i < populationCount; i++){
-            population[i].brain = championBrain;
+        for(int i = 10; i < populationCount; i++){         
+            population[i].brain.copy(championBrain);;
             if(i != 0){
-                population[i].brain.mutate(0.4);;
+                population[i].brain.mutate(0.8);;
             }
 
-            population[i].reset();
+            population[i].reset(null ,null);
         }
 
         //reset traffic
         for(Car car: traffic){
-            car.reset();
+            car.reset(null, null);
+        }
+
+        // reset population fitness
+        for(int i = 0; i < populationCount; i++){
+            populationFitness[i] = 0.0;
         }
 
         // increase generation
@@ -243,7 +250,7 @@ public class Game extends Application {
 
     private void setUpDisplayInfo(Car car){
         generationLabel.setText(String.format("Generation: %d", currentGeneration));
-        remainingCarsLabel.setText(String.format("Cars: %d/20", remainingCars));
+        remainingCarsLabel.setText(String.format("Cars: %d/%d", remainingCars, populationCount));
         speedLabel.setText(String.format("Speed: %.2f", car.speed));
         xLabel.setText(String.format("X: %.2f", car.x));
         yLabel.setText(String.format("Y: %.2f", car.y));
@@ -255,6 +262,9 @@ public class Game extends Application {
             car.predictedActionIndex == 3 ? "RIGHT" :
             "NULL"
         ));
+        carRewardPointLabel.setText(String.format("Reward Points: %.2f", populationFitness[Arrays.asList(population).indexOf(car)]));
+        carIndexLabel.setText(String.format("Car index: %d", Arrays.asList(population).indexOf(car)));
+        timeLabel.setText(String.format("Time: %d", framesInGeneration/60));
     }
 
     private Car[] generatePopulation(int N){
@@ -305,4 +315,58 @@ public class Game extends Application {
         File file = new File(fileName);
         return (file.exists());
     }
+
+
+private void rewardFunction(Car car) {
+    int index = Arrays.asList(population).indexOf(car);
+
+    if (index < 0) return;
+
+    // CHANGED: Apply crash penalty once, then skip dead cars.
+    if (!car.isAlive()) {
+        if (!car.crashPenaltyApplied) {
+            populationFitness[index] -= 50.0;
+            car.crashPenaltyApplied = true;
+        }
+        return;
+    }
+
+    // Reward for moving forward
+    if (car.speed > 0.1) {
+        populationFitness[index] += 0.01;
+    }
+
+    // Detect traffic and start tracking a lane change
+    boolean changingLane = Math.abs(car.angle) > 20;
+
+    if (car.hasDetectedCar && changingLane && car.speed > 0.1) {
+        car.laneChangeStarted = true;
+    }
+
+    boolean movingInLane = Math.abs(car.angle) < 2.0;
+
+    // CHANGED: Award the lane-change bonus only once when the
+    // car returns straight after starting a lane change.
+    if (movingInLane && car.laneChangeStarted && car.speed > 0.1) {
+        car.laneChangeStarted = false;
+        car.waitingStartTime = -1;
+        populationFitness[index] += 10.0; // CHANGED: Reduced from +50
+    }
+
+    // Track how long the car waits behind traffic
+    if (car.hasDetectedCar && car.speed > 0.1 && !car.laneChangeStarted) {
+        if (car.waitingStartTime == -1) {
+            car.waitingStartTime = framesInGeneration / 60;
+        }
+    }
+
+    // CHANGED: Penalize waiting only once per waiting period.
+    if (car.waitingStartTime != -1
+            && (framesInGeneration / 60 - car.waitingStartTime) > 5
+            && !car.laneChangeStarted) {
+        populationFitness[index] -= 5.0; // CHANGED: Reduced from -50
+        car.waitingStartTime = -1;
+    }
+}
+
 }
