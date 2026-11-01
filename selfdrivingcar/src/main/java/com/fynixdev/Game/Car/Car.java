@@ -1,7 +1,9 @@
 package com.fynixdev.Game.Car;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import com.fynixdev.Game.neuralnetwork.Layer;
 import com.fynixdev.Game.neuralnetwork.NeuralNetwork;
@@ -32,9 +34,15 @@ public class Car {
     public int predictedActionIndex = 0;
     public boolean hasDetectedCar = false;
     public Car detectedCar = null;
-    public boolean laneChangeStarted = false, crashPenaltyApplied = false;
+    public boolean laneChangeStarted = false    ;
     public int waitingStartTime = -1;
     public double distanceTravelled = 0.0;
+    private final Set<Car> rewardedTraffic = new HashSet<>();
+    public Car trackedTrafficCar = null;
+    public boolean trafficEncounterActive = false;
+    public boolean overtakeRewarded = false;
+    public boolean crashPenaltyApplied = false;
+    public double previousY;
 
     public Car(double x, double y, int width, int height, int maxSpeed, String type) {
         this.x = x;
@@ -50,15 +58,16 @@ public class Car {
         this.friction = 0.05;
         this.maxSpeed = maxSpeed;
         this.isDamaged = false;
+        this.previousY = this.y;
 
         if("CAR".equals(type)){
-            sensor = new Sensor(this, 6, 250);
+            sensor = new Sensor(this, 5, 230);
             
             // create the model structure
-            Layer inputLayer = new Layer(this.sensor.rayCount, 6, new Linear());
-            Layer hiddenLayer1 = new Layer(6, 6, new ReLU());
+            Layer inputLayer = new Layer(this.sensor.rayCount, 5, new Linear());
+            Layer hiddenLayer1 = new Layer(6, 5, new ReLU());
             Layer hiddenLayer2 = new Layer(6, 6, new ReLU());
-            Layer outputLayer = new Layer(4, 6, new ReLU());
+            Layer outputLayer = new Layer(4, 6, new Linear());
             brain = new NeuralNetwork(0.0);
             brain.addLayer(inputLayer);
             brain.addLayer(hiddenLayer1);
@@ -67,13 +76,13 @@ public class Car {
         }
     }
 
-    public void draw(GraphicsContext gc, List<List<Utils.Point>> borders, Car[] traffic, boolean drawSensor, boolean transparent) {
+    public void draw(GraphicsContext gc, List<List<Utils.Point>> borders, Car[] traffic, boolean drawSensor, boolean transparent, int index) {
         // save
         gc.save();
         
         //draw
         gc.setGlobalAlpha(transparent ? 0.2 : 1.0);
-        gc.setFill(isDamaged ? Color.BLACK : "CAR".equals(this.type) ? Color.RED : Color.BLUE);
+        gc.setFill(isDamaged ? Color.BLACK : index == 0 ? Color.GREEN : "CAR".equals(this.type) ? Color.RED : Color.BLUE);
         gc.setStroke(Color.BLACK);
         gc.fillPolygon(this.xPoints, this.yPoints, 4);
 
@@ -91,15 +100,20 @@ public class Car {
         if(down == 1){
             this.speed -= this.acceleration;
         }
-        if(this.speed != 0){
-            int flip = speed > 0 ? 1 : -1;
-            if(left == 1){
+
+        if (this.speed != 0) {
+            int flip = this.speed > 0 ? 1 : -1;
+
+            if (left == 1) {
                 this.angle -= this.rotationAngle * flip;
             }
-            if(right == 1){
+            
+            if (right == 1) {
                 this.angle += this.rotationAngle * flip;
             }
         }
+        // Keep angle in the range [-180, 180].
+        this.angle = ((this.angle + 180) % 360 + 360) % 360 - 180;
 
         // check few conditions to follow the physics of the car
         if(this.speed > this.maxSpeed){
@@ -114,12 +128,14 @@ public class Car {
             this.speed = Math.min(0, this.speed + this.friction);
         }
 
+
+
         double angleRadians = Math.toRadians(this.angle);
         this.x -= Math.sin(angleRadians) * this.speed;
         this.y -= Math.cos(angleRadians) * this.speed;
     }
 
-    public void update(int x, int y, List<List<Utils.Point>> borders, Car[] traffic){
+    public void update(int x, int y, List<List<Utils.Point>> borders, Car[] traffic, int frames){
         if("CAR".equals(this.type)){
             sensor.update(borders, traffic);
             
@@ -231,11 +247,23 @@ public class Car {
         this.speed = 0;
         this.x = x == null ? intiX : x;
         this.y = y == null ? intiY : y;
+        this.previousY = this.y;
         this.angle = 0;
         this.isDamaged = false;
+        this.hasDetectedCar = false;
+        this.detectedCar = null;
+        this.crashPenaltyApplied = false;
+        this.laneChangeStarted = false;
+        this.waitingStartTime = -1;
+        this.distanceTravelled = 0.0;
+        this.rewardedTraffic.clear();
         if("CAR".equals(this.type)){
             sensor.reset();
         }
+    }
+
+    public boolean markTrafficAsRewarded(Car trafficCar){
+        return rewardedTraffic.add(trafficCar);
     }
 
     public boolean isAlive(){

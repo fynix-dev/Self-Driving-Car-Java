@@ -23,9 +23,9 @@ public class Layer implements java.io.Serializable {
         return outputs;
     }
 
-    public void mutate(double mutationRate){
+    public void mutate(double mutationRate, double mutationStrength){
         for(Neuron neuron: neurons){
-            neuron.mutate(mutationRate);
+            neuron.mutate(mutationRate, mutationStrength);
         }
     }
 

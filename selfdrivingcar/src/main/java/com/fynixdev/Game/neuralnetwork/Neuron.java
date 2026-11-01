@@ -35,15 +35,27 @@ public class Neuron implements java.io.Serializable {
     //     bias = Utils.lerp(bias, Math.random() * 2 - 1, mutationRate);
     // }
 
-    public void mutate(double mutationRate) {
+    // public void mutate(double mutationRate) {
+    //     for (int i = 0; i < weights.length; i++) {
+    //         if (Math.random() < mutationRate) {
+    //             weights[i] += Math.random() * 0.4 - 0.2;
+    //         }
+    //     }
+
+    //     if (Math.random() < mutationRate) {
+    //         bias += Math.random() * 0.4 - 0.2;
+    //     }
+    // }
+
+    public void mutate(double mutationRate, double mutationStrength) {
         for (int i = 0; i < weights.length; i++) {
             if (Math.random() < mutationRate) {
-                weights[i] += Math.random() * 0.4 - 0.2;
+                weights[i] += (Math.random() * 2 - 1) * mutationStrength;
             }
         }
 
         if (Math.random() < mutationRate) {
-            bias += Math.random() * 0.4 - 0.2;
+            bias += (Math.random() * 2 - 1) * mutationStrength;
         }
     }
 

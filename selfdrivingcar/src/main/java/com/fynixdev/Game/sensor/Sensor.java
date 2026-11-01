@@ -11,7 +11,7 @@ import javafx.scene.paint.Color;
 
 public class Sensor {
     public int rayCount;
-    double rayLength, raySpread = Math.PI/2;
+    double rayLength, raySpread = Math.PI * 0.8;
     Car car;
     List<List<Utils.Point>> rays = new ArrayList<>();
     public List<double[]> readings = new ArrayList<>();
@@ -46,6 +46,7 @@ public class Sensor {
     private void getReadings(List<List<Utils.Point>> borders, Car[] traffic){
         readings.clear();
         car.hasDetectedCar = false;
+        car.detectedCar = null;
 
         // loop for each ray
         for (int i = 0; i < rays.size(); i++) {

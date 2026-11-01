@@ -43,7 +43,7 @@ public class Game extends Application {
     private double[] populationFitness = new double[populationCount];
     Car bestCar;
     private int framesInGeneration = 0;
-    private static int MAX_FRAMES_IN_GENERATION = 3000;
+    private static int MAX_FRAMES_IN_GENERATION = 1800;
     private boolean allDead;
     private int currentGeneration = 1;
     private int remainingCars = populationCount;
@@ -87,19 +87,27 @@ public class Game extends Application {
             for(int i = 0; i < population.length; i++){
                 population[i].brain.copy(loadedBrain);
                 if(i != 0){
-                    population[i].brain.mutate(0.4);
+                    population[i].brain.mutate(0.7, 0.5);
                 }
             }
         }
         // traffic
         traffic = new Car[]{
+            // row1
             new Car(road.getLaneCenter(1), -200, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(0), -200, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(2), -500, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(0), -800, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(2), -1200, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(1), -1500, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(0), -1800, 50, 100, 2, "DUMMY"),
+            // row2
+            new Car(road.getLaneCenter(2), -450, 50, 100, 2, "DUMMY"),
+            // row3
+            new Car(road.getLaneCenter(0), -700, 50, 100, 2, "DUMMY"),
+            // row4
+            new Car(road.getLaneCenter(1), -950, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(2), -950, 50, 100, 2, "DUMMY"),
+            // row5
+            new Car(road.getLaneCenter(0), -1200, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(1), -1200, 50, 100, 2, "DUMMY"),
+            // row6
+            new Car(road.getLaneCenter(0), -1450, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(2), -1450, 50, 100, 2, "DUMMY"),
         };
 
         // initialize UI
@@ -150,11 +158,11 @@ public class Game extends Application {
     private void trainingLoop(Canvas canvas){
         // update the traffic
         for(Car car: traffic){
-            car.update(0, 1, road.borders, null);
+            car.update(0, 1, road.borders, null, framesInGeneration);
         }
         // update the population
         for(Car car: population){
-            car.update(0, 0, road.borders, traffic);
+            car.update(0, 0, road.borders, traffic, framesInGeneration);
         }
         // update the reward function
         for(int i = 0; i < populationCount; i++){
@@ -170,13 +178,13 @@ public class Game extends Application {
         // draw on the canvas
         road.draw(gc);
         for(Car car: traffic){
-            car.draw(gc, road.borders, null, false, false);
+            car.draw(gc, road.borders, null, false, false, -1);
         }
   
         for(Car car: population){
-            car.draw(gc, road.borders, null, false, true);
+            car.draw(gc, road.borders, null, false, true, Arrays.asList(population).indexOf(car));
         }
-        bestCar.draw(gc, road.borders, traffic, true, false);
+        bestCar.draw(gc, road.borders, traffic, true, false, Arrays.asList(population).indexOf(bestCar));
 
         // check if all cars in pupulation are dead
         allDead = true;
@@ -217,12 +225,10 @@ public class Game extends Application {
         // v2 clear old, generate some random and some mutated
         population = generatePopulation(populationCount);
         NeuralNetwork championBrain = loadBrain();
-        for(int i = 10; i < populationCount; i++){         
-            population[i].brain.copy(championBrain);;
-            if(i != 0){
-                population[i].brain.mutate(0.8);;
-            }
-
+        population[0].brain = championBrain;
+        for(int i = 30; i < populationCount; i++){         
+            population[i].brain.copy(championBrain);
+            population[i].brain.mutate(0.9, 0.4);
             population[i].reset(null ,null);
         }
 
@@ -316,57 +322,67 @@ public class Game extends Application {
         return (file.exists());
     }
 
+    // reward function v2
+    private void rewardFunction(Car car) {
+        int index = Arrays.asList(population).indexOf(car);
 
-private void rewardFunction(Car car) {
-    int index = Arrays.asList(population).indexOf(car);
-
-    if (index < 0) return;
-
-    // CHANGED: Apply crash penalty once, then skip dead cars.
-    if (!car.isAlive()) {
-        if (!car.crashPenaltyApplied) {
-            populationFitness[index] -= 50.0;
-            car.crashPenaltyApplied = true;
+        if (index < 0) {
+            return;
         }
-        return;
-    }
 
-    // Reward for moving forward
-    if (car.speed > 0.1) {
-        populationFitness[index] += 0.01;
-    }
+        // Handle crashes only once.
+        if (!car.isAlive()) {
+            if (!car.crashPenaltyApplied) {
+                populationFitness[index] -= 50.0;
+                car.crashPenaltyApplied = true;
+            }
+            return;
+        }
 
-    // Detect traffic and start tracking a lane change
-    boolean changingLane = Math.abs(car.angle) > 20;
+        // Reward forward progress.
+        // Assumes decreasing Y means moving forward.
+        double distance = car.previousY - car.y;
 
-    if (car.hasDetectedCar && changingLane && car.speed > 0.1) {
-        car.laneChangeStarted = true;
-    }
+        if (car.speed > 0) {
+            populationFitness[index] += 0.01;
+        }
 
-    boolean movingInLane = Math.abs(car.angle) < 2.0;
+        car.previousY = car.y;
 
-    // CHANGED: Award the lane-change bonus only once when the
-    // car returns straight after starting a lane change.
-    if (movingInLane && car.laneChangeStarted && car.speed > 0.1) {
-        car.laneChangeStarted = false;
-        car.waitingStartTime = -1;
-        populationFitness[index] += 10.0; // CHANGED: Reduced from +50
-    }
+        // Start tracking a traffic car when detected.
+        if (!car.trafficEncounterActive
+                && car.hasDetectedCar
+                && car.detectedCar != null) {
 
-    // Track how long the car waits behind traffic
-    if (car.hasDetectedCar && car.speed > 0.1 && !car.laneChangeStarted) {
-        if (car.waitingStartTime == -1) {
-            car.waitingStartTime = framesInGeneration / 60;
+            car.trackedTrafficCar = car.detectedCar;
+            car.trafficEncounterActive = true;
+            car.overtakeRewarded = false;
+        }
+
+        // Continue tracking even after sensor detection ends.
+        if (car.trafficEncounterActive
+                && car.trackedTrafficCar != null) {
+
+            Car traffic = car.trackedTrafficCar;
+
+            // Assumes Y is the center of each car.
+            // Smaller Y means farther up the screen.
+            boolean passedTraffic =
+                    traffic.y - traffic.height / 2.0
+                    > car.y + car.height / 2.0;
+
+            if (passedTraffic && !car.overtakeRewarded) {
+                populationFitness[index] += 50.0;
+                car.overtakeRewarded = true;
+            }
+
+            // End this encounter after the traffic car passes behind.
+            if (passedTraffic) {
+                car.trackedTrafficCar = null;
+                car.trafficEncounterActive = false;
+                car.overtakeRewarded = false;
+            }
         }
     }
-
-    // CHANGED: Penalize waiting only once per waiting period.
-    if (car.waitingStartTime != -1
-            && (framesInGeneration / 60 - car.waitingStartTime) > 5
-            && !car.laneChangeStarted) {
-        populationFitness[index] -= 5.0; // CHANGED: Reduced from -50
-        car.waitingStartTime = -1;
-    }
-}
 
 }

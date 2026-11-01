@@ -22,9 +22,9 @@ public class NeuralNetwork implements java.io.Serializable{
         return currentOutput;
     }
 
-    public void mutate(double mutationRate){
+    public void mutate(double mutationRate, double mutationStrength){
         for(Layer layer: layers){
-            layer.mutate(mutationRate);
+            layer.mutate(mutationRate, mutationStrength);
         }
     }
 
