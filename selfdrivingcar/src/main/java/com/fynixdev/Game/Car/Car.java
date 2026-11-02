@@ -43,6 +43,8 @@ public class Car {
     public boolean overtakeRewarded = false;
     public boolean crashPenaltyApplied = false;
     public double previousY;
+    public int overtakingStartTime = -1;
+    public boolean waitingTooLongPenaaltyApplied = false;
 
     public Car(double x, double y, int width, int height, int maxSpeed, String type) {
         this.x = x;
@@ -64,10 +66,10 @@ public class Car {
             sensor = new Sensor(this, 5, 230);
             
             // create the model structure
-            Layer inputLayer = new Layer(this.sensor.rayCount, 5, new Linear());
-            Layer hiddenLayer1 = new Layer(6, 5, new ReLU());
-            Layer hiddenLayer2 = new Layer(6, 6, new ReLU());
-            Layer outputLayer = new Layer(4, 6, new Linear());
+            Layer inputLayer = new Layer(this.sensor.rayCount * 2, 10, new Linear());
+            Layer hiddenLayer1 = new Layer(12, this.sensor.rayCount * 2, new ReLU());
+            Layer hiddenLayer2 = new Layer(8, 12, new ReLU());
+            Layer outputLayer = new Layer(4, 8, new Linear());
             brain = new NeuralNetwork(0.0);
             brain.addLayer(inputLayer);
             brain.addLayer(hiddenLayer1);
@@ -138,10 +140,14 @@ public class Car {
     public void update(int x, int y, List<List<Utils.Point>> borders, Car[] traffic, int frames){
         if("CAR".equals(this.type)){
             sensor.update(borders, traffic);
-            
-            double[] readings = sensor.readings.stream()
-                .mapToDouble(reading -> reading == null ? 0 : 1 - reading[2])
-                .toArray();
+
+            double[] readings = new double[sensor.rayCount * 2];
+
+            for (int i = 0; i < sensor.rayCount; i++) {
+                readings[i] = sensor.trafficInputs.get(i);
+                readings[i + sensor.rayCount] = sensor.borderInputs.get(i);
+            }
+
             predictedOutputs = brain.feedForward(readings);
             int bestActionIndex = Utils.softMax(predictedOutputs);
             // System.out.println("Best action index: " + bestActionIndex + "Predicted output: " + Arrays.toString(predictedOutputs));
@@ -267,6 +273,9 @@ public class Car {
     }
 
     public boolean isAlive(){
+        if(this.speed == 0.0){
+            return false;
+        }
         return !isDamaged;
     }
 }

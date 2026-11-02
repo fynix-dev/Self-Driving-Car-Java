@@ -5,6 +5,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Set;
@@ -39,15 +40,16 @@ public class Game extends Application {
     private Road road;
     private Set<KeyCode> pressedKeys = EnumSet.noneOf(KeyCode.class);
     private Car[] population;
-    private int populationCount = 100;
+    private int populationCount = 1000;
     private double[] populationFitness = new double[populationCount];
     Car bestCar;
     private int framesInGeneration = 0;
-    private static int MAX_FRAMES_IN_GENERATION = 1800;
+    private static int MAX_FRAMES_IN_GENERATION = 3000;
     private boolean allDead;
     private int currentGeneration = 1;
     private int remainingCars = populationCount;
     private double prevBestFitness = 0.0;
+    private int deadCarRandom = 0, deadCarMutated = 0;
 
     // GUI
     private GraphicsContext gc;
@@ -66,6 +68,7 @@ public class Game extends Application {
     private Label carRewardPointLabel = new Label("Reward Points: 0");
     private Label carIndexLabel = new Label("Car Index: 0");
     private Label timeLabel = new Label("Time: 0");
+    private Label deadCarsLabel = new Label("Dead Cars: ");
     
     // start method is the main entry point for all JavaFX applications where we create the basic screen
 	@Override
@@ -96,18 +99,18 @@ public class Game extends Application {
             // row1
             new Car(road.getLaneCenter(1), -200, 50, 100, 2, "DUMMY"),
             // row2
-            new Car(road.getLaneCenter(2), -450, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(2), -550, 50, 100, 2, "DUMMY"),
             // row3
-            new Car(road.getLaneCenter(0), -700, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(0), -900, 50, 100, 2, "DUMMY"),
             // row4
-            new Car(road.getLaneCenter(1), -950, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(2), -950, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(1), -1250, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(2), -1250, 50, 100, 2, "DUMMY"),
             // row5
-            new Car(road.getLaneCenter(0), -1200, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(1), -1200, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(0), -1600, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(1), -1600, 50, 100, 2, "DUMMY"),
             // row6
-            new Car(road.getLaneCenter(0), -1450, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(2), -1450, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(0), -1950, 50, 100, 2, "DUMMY"),
+            new Car(road.getLaneCenter(2), -1950, 50, 100, 2, "DUMMY"),
         };
 
         // initialize UI
@@ -122,7 +125,7 @@ public class Game extends Application {
 
         remainingCarsLabel.setFont(new Font(16));
         generationLabel.setFont(new Font(20));
-        infoBox.getChildren().addAll(generationLabel, remainingCarsLabel, carIndexLabel, speedLabel, xLabel, yLabel, angleLabel, predictedActionLabel, carRewardPointLabel, timeLabel);
+        infoBox.getChildren().addAll(generationLabel, remainingCarsLabel, carIndexLabel, speedLabel, xLabel, yLabel, angleLabel, predictedActionLabel, carRewardPointLabel, deadCarsLabel, timeLabel);
         controlBox.getChildren().addAll(resetButton, saveButton);
         infoBox.setPadding(new Insets(10, 10, 10, 10));
         controlBox.setPadding(new Insets(10, 10, 10, 10));
@@ -189,10 +192,18 @@ public class Game extends Application {
         // check if all cars in pupulation are dead
         allDead = true;
         remainingCars = 0;
-        for(Car car: population){
-            if(car.isAlive()){
+        deadCarRandom = 0;
+        deadCarMutated = 0;
+        for(int i = 0; i < populationCount; i++){
+            if(population[i].isAlive()){
                 allDead = false;
                 remainingCars++;
+            }else{
+                if(i != 0 && i < 40){
+                    deadCarRandom++;
+                } else {
+                    deadCarMutated++;
+                }
             }
         }
         
@@ -208,6 +219,7 @@ public class Game extends Application {
     }
 
     private void evolve(){
+        boolean linearMutation = false;
         // print generation completed
         System.out.println("====== Generation " + currentGeneration + " completed ======");
 
@@ -226,9 +238,9 @@ public class Game extends Application {
         population = generatePopulation(populationCount);
         NeuralNetwork championBrain = loadBrain();
         population[0].brain = championBrain;
-        for(int i = 30; i < populationCount; i++){         
+        for(int i = (int) populationCount/4; i < populationCount; i++){         
             population[i].brain.copy(championBrain);
-            population[i].brain.mutate(0.9, 0.4);
+            population[i].brain.mutate(0.9, linearMutation ? Utils.lerp(0.2,0.8, (double) i/ (double) populationCount) : 0.5);
             population[i].reset(null ,null);
         }
 
@@ -271,6 +283,7 @@ public class Game extends Application {
         carRewardPointLabel.setText(String.format("Reward Points: %.2f", populationFitness[Arrays.asList(population).indexOf(car)]));
         carIndexLabel.setText(String.format("Car index: %d", Arrays.asList(population).indexOf(car)));
         timeLabel.setText(String.format("Time: %d", framesInGeneration/60));
+        deadCarsLabel.setText(String.format("Dead Cars: Random: %d, Mutated: %d", deadCarRandom, deadCarMutated));
     }
 
     private Car[] generatePopulation(int N){
@@ -339,10 +352,6 @@ public class Game extends Application {
             return;
         }
 
-        // Reward forward progress.
-        // Assumes decreasing Y means moving forward.
-        double distance = car.previousY - car.y;
-
         if (car.speed > 0) {
             populationFitness[index] += 0.01;
         }
@@ -357,6 +366,8 @@ public class Game extends Application {
             car.trackedTrafficCar = car.detectedCar;
             car.trafficEncounterActive = true;
             car.overtakeRewarded = false;
+            car.overtakingStartTime = framesInGeneration;
+            car.waitingTooLongPenaaltyApplied = false;
         }
 
         // Continue tracking even after sensor detection ends.
@@ -370,6 +381,11 @@ public class Game extends Application {
             boolean passedTraffic =
                     traffic.y - traffic.height / 2.0
                     > car.y + car.height / 2.0;
+            // check if car is waiting for too long to overtake
+            if(car.overtakingStartTime != -1 && (framesInGeneration - car.overtakingStartTime) > 500 && !car.waitingTooLongPenaaltyApplied){
+                populationFitness[index] -= 15.0;
+                car.waitingTooLongPenaaltyApplied = true;
+            }
 
             if (passedTraffic && !car.overtakeRewarded) {
                 populationFitness[index] += 50.0;
@@ -381,6 +397,7 @@ public class Game extends Application {
                 car.trackedTrafficCar = null;
                 car.trafficEncounterActive = false;
                 car.overtakeRewarded = false;
+                car.overtakingStartTime = -1;
             }
         }
     }

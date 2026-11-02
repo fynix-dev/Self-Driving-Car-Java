@@ -15,6 +15,8 @@ public class Sensor {
     Car car;
     List<List<Utils.Point>> rays = new ArrayList<>();
     public List<double[]> readings = new ArrayList<>();
+    public List<Double> trafficInputs = new ArrayList<>();
+    public List<Double> borderInputs = new ArrayList<>();
     boolean printable = true;
 
     public Sensor(Car car, int rayCount, int rayLength){
@@ -43,59 +45,157 @@ public class Sensor {
         }
     }
 
-    private void getReadings(List<List<Utils.Point>> borders, Car[] traffic){
+    // private void getReadings(List<List<Utils.Point>> borders, Car[] traffic){
+    //     readings.clear();
+    //     car.hasDetectedCar = false;
+    //     car.detectedCar = null;
+
+    //     // loop for each ray
+    //     for (int i = 0; i < rays.size(); i++) {
+    //         // ray start and end
+    //         Utils.Point rayStart = rays.get(i).get(0);
+    //         Utils.Point rayEnd = rays.get(i).get(1);
+
+    //         double[] reading = null;
+
+    //         // loop for each border
+    //         for (List<Utils.Point> border : borders) {
+    //             double[] intersection = Utils.getIntersection(
+    //                 rayStart,
+    //                 rayEnd,
+    //                 border.get(0),
+    //                 border.get(1)
+    //             );
+    //             if (intersection != null && (reading == null || intersection[2] < reading[2])) {
+    //                 reading = intersection;
+    //             }
+    //         }
+            
+    //         if(traffic != null){
+    //             // loop for traffic car
+    //             for(Car trafficCar: traffic){
+    //                 if(trafficCar.polygonPoints.size() < 2){
+    //                     continue;
+    //                 }
+    //                 // loop for each point in polypoints of traffic
+    //                 for(int j = 0; j < trafficCar.polygonPoints.size(); j++){
+    //                     double[] intersection = Utils.getIntersection(
+    //                         rayStart,
+    //                         rayEnd,
+    //                         trafficCar.polygonPoints.get(j).get(0),
+    //                         trafficCar.polygonPoints.get((j + 1) % trafficCar.polygonPoints.size()).get(0)
+    //                     );
+    //                     if (intersection != null && (reading == null || intersection[2] < reading[2])) {
+    //                         reading = intersection;
+    //                         this.car.hasDetectedCar = true;
+    //                         this.car.detectedCar = trafficCar;
+    //                     }
+    //                 }
+    //             }
+    //         }
+
+    //         // reading already contains the nearest hit, or null if the ray hit nothing.
+    //         readings.add(reading);
+    //     }
+
+    // }
+
+    private void getReadings(List<List<Utils.Point>> borders, Car[] traffic) {
+
         readings.clear();
+        trafficInputs.clear();
+        borderInputs.clear();
+
         car.hasDetectedCar = false;
         car.detectedCar = null;
 
-        // loop for each ray
+        double closestTrafficDistance = Double.MAX_VALUE;
+
         for (int i = 0; i < rays.size(); i++) {
-            // ray start and end
+
             Utils.Point rayStart = rays.get(i).get(0);
             Utils.Point rayEnd = rays.get(i).get(1);
 
-            double[] reading = null;
+            double[] nearestBorder = null;
+            double[] nearestTraffic = null;
 
-            // loop for each border
+            // Find nearest road boundary.
             for (List<Utils.Point> border : borders) {
+
                 double[] intersection = Utils.getIntersection(
-                    rayStart,
-                    rayEnd,
-                    border.get(0),
-                    border.get(1)
+                    rayStart, rayEnd,
+                    border.get(0), border.get(1)
                 );
-                if (intersection != null && (reading == null || intersection[2] < reading[2])) {
-                    reading = intersection;
+
+                if (intersection != null &&
+                    (nearestBorder == null ||
+                    intersection[2] < nearestBorder[2])) {
+
+                    nearestBorder = intersection;
                 }
             }
-            
-            if(traffic != null){
-                // loop for traffic car
-                for(Car trafficCar: traffic){
-                    if(trafficCar.polygonPoints.size() < 2){
+
+            // Find nearest traffic car independently.
+            if (traffic != null) {
+
+                for (Car trafficCar : traffic) {
+
+                    if (trafficCar == car ||
+                        !trafficCar.isAlive() ||
+                        trafficCar.polygonPoints.size() < 2) {
                         continue;
                     }
-                    // loop for each point in polypoints of traffic
-                    for(int j = 0; j < trafficCar.polygonPoints.size(); j++){
+
+                    for (int j = 0; j < trafficCar.polygonPoints.size(); j++) {
+
                         double[] intersection = Utils.getIntersection(
-                            rayStart,
-                            rayEnd,
+                            rayStart, rayEnd,
                             trafficCar.polygonPoints.get(j).get(0),
-                            trafficCar.polygonPoints.get((j + 1) % trafficCar.polygonPoints.size()).get(0)
+                            trafficCar.polygonPoints.get(
+                                (j + 1) % trafficCar.polygonPoints.size()
+                            ).get(0)
                         );
-                        if (intersection != null && (reading == null || intersection[2] < reading[2])) {
-                            reading = intersection;
-                            this.car.hasDetectedCar = true;
-                            this.car.detectedCar = trafficCar;
+
+                        if (intersection != null &&
+                            (nearestTraffic == null ||
+                            intersection[2] < nearestTraffic[2])) {
+
+                            nearestTraffic = intersection;
                         }
+                    }
+
+                    if (nearestTraffic != null &&
+                        nearestTraffic[2] < closestTrafficDistance) {
+
+                        closestTrafficDistance = nearestTraffic[2];
+                        car.hasDetectedCar = true;
+                        car.detectedCar = trafficCar;
                     }
                 }
             }
 
-            // reading already contains the nearest hit, or null if the ray hit nothing.
-            readings.add(reading);
-        }
+            // Convert distances into normalized proximity values.
+            double trafficValue = nearestTraffic == null
+                ? 0.0 : 1.0 - nearestTraffic[2];
 
+            double borderValue = nearestBorder == null
+                ? 0.0 : 1.0 - nearestBorder[2];
+
+            trafficInputs.add(trafficValue);
+            borderInputs.add(borderValue);
+
+            // Keep existing visual sensor readings.
+            double[] nearest = nearestBorder;
+
+            if (nearestTraffic != null &&
+                (nearest == null ||
+                nearestTraffic[2] < nearest[2])) {
+
+                nearest = nearestTraffic;
+            }
+
+            readings.add(nearest);
+        }
     }
 
     public void update(List<List<Utils.Point>> borders, Car[] traffic){
