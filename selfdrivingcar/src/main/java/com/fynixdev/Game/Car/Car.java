@@ -1,6 +1,7 @@
 package com.fynixdev.Game.Car;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -63,7 +64,7 @@ public class Car {
         this.previousY = this.y;
 
         if("CAR".equals(type)){
-            sensor = new Sensor(this, 5, 230);
+            sensor = new Sensor(this, 5, 300);
             
             // create the model structure
             Layer inputLayer = new Layer(this.sensor.rayCount * 2, 10, new Linear());
@@ -78,7 +79,7 @@ public class Car {
         }
     }
 
-    public void draw(GraphicsContext gc, List<List<Utils.Point>> borders, Car[] traffic, boolean drawSensor, boolean transparent, int index) {
+    public void draw(GraphicsContext gc, List<List<Utils.Point>> borders, List<Car> traffic, boolean drawSensor, boolean transparent, int index) {
         // save
         gc.save();
         
@@ -99,8 +100,12 @@ public class Car {
         if(up == 1){
             this.speed += this.acceleration;
         }
-        if(down == 1){
-            this.speed -= this.acceleration;
+        if (down == 1) {
+            if (speed > 0) {
+                speed = Math.max(0, speed - acceleration);
+            } else if (speed < 0) {
+                speed = Math.min(0, speed + acceleration);
+            }
         }
 
         if (this.speed != 0) {
@@ -137,18 +142,19 @@ public class Car {
         this.y -= Math.cos(angleRadians) * this.speed;
     }
 
-    public void update(int x, int y, List<List<Utils.Point>> borders, Car[] traffic, int frames){
+    public void update(int x, int y, List<List<Utils.Point>> borders, List<Car> traffic, int frames){
         if("CAR".equals(this.type)){
             sensor.update(borders, traffic);
 
+            
             double[] readings = new double[sensor.rayCount * 2];
-
-            for (int i = 0; i < sensor.rayCount; i++) {
-                readings[i] = sensor.trafficInputs.get(i);
-                readings[i + sensor.rayCount] = sensor.borderInputs.get(i);
+            if(frames % 3 == 0){
+                for (int i = 0; i < sensor.rayCount; i++) {
+                    readings[i] = sensor.trafficInputs.get(i);
+                    readings[i + sensor.rayCount] = sensor.borderInputs.get(i);
+                }
+                predictedOutputs = brain.feedForward(readings);
             }
-
-            predictedOutputs = brain.feedForward(readings);
             int bestActionIndex = Utils.softMax(predictedOutputs);
             // System.out.println("Best action index: " + bestActionIndex + "Predicted output: " + Arrays.toString(predictedOutputs));
             predictedActionIndex = bestActionIndex;
@@ -177,7 +183,7 @@ public class Car {
         }
     }
 
-    private boolean assessDamage(List<List<Utils.Point>> borders, Car[] traffic){
+    private boolean assessDamage(List<List<Utils.Point>> borders, List<Car> traffic){
         if(isDamaged){
             return true;
         }
@@ -199,14 +205,14 @@ public class Car {
         // detect collision with traffic
         if(traffic != null){
             // loop for car count
-            for(int i = 0; i < traffic.length; i++){
+            for(int i = 0; i < traffic.size(); i++){
                 // loop for each point in a traffic car's polygon
-                for(int j = 0; j < traffic[i].polygonPoints.size(); j++){
+                for(int j = 0; j < traffic.get(i).polygonPoints.size(); j++){
                     // loop for this polygon points
                     for(int k = 0; k < polygonPoints.size(); k++){
                         double[] touch = Utils.getIntersection(
-                            traffic[i].polygonPoints.get(j % polygonPoints.size()).get(0),
-                            traffic[i].polygonPoints.get((j + 1) % polygonPoints.size()).get(0), 
+                            traffic.get(i).polygonPoints.get(j % polygonPoints.size()).get(0),
+                            traffic.get(i).polygonPoints.get((j + 1) % polygonPoints.size()).get(0), 
                             polygonPoints.get(k % polygonPoints.size()).get(0), 
                             polygonPoints.get((k + 1) % polygonPoints.size()).get(0)
                         );
@@ -273,9 +279,6 @@ public class Car {
     }
 
     public boolean isAlive(){
-        if(this.speed == 0.0){
-            return false;
-        }
         return !isDamaged;
     }
 }

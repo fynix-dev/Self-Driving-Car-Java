@@ -7,7 +7,10 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.EnumSet;
+import java.util.List;
+import java.util.Random;
 import java.util.Set;
 
 import com.fynixdev.Game.Car.Car;
@@ -36,7 +39,7 @@ import javafx.stage.Stage;
 import javafx.util.Duration;
 
 public class Game extends Application {
-    private Car[] traffic;
+    private List<Car> traffic = new ArrayList<>();
     private Road road;
     private Set<KeyCode> pressedKeys = EnumSet.noneOf(KeyCode.class);
     private Car[] population;
@@ -44,12 +47,13 @@ public class Game extends Application {
     private double[] populationFitness = new double[populationCount];
     Car bestCar;
     private int framesInGeneration = 0;
-    private static int MAX_FRAMES_IN_GENERATION = 3000;
+    private static int MAX_FRAMES_IN_GENERATION = 1800;
     private boolean allDead;
     private int currentGeneration = 1;
     private int remainingCars = populationCount;
     private double prevBestFitness = 0.0;
     private int deadCarRandom = 0, deadCarMutated = 0;
+    private int rowsOfTraffic = 6;
 
     // GUI
     private GraphicsContext gc;
@@ -95,23 +99,7 @@ public class Game extends Application {
             }
         }
         // traffic
-        traffic = new Car[]{
-            // row1
-            new Car(road.getLaneCenter(1), -200, 50, 100, 2, "DUMMY"),
-            // row2
-            new Car(road.getLaneCenter(2), -550, 50, 100, 2, "DUMMY"),
-            // row3
-            new Car(road.getLaneCenter(0), -900, 50, 100, 2, "DUMMY"),
-            // row4
-            new Car(road.getLaneCenter(1), -1250, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(2), -1250, 50, 100, 2, "DUMMY"),
-            // row5
-            new Car(road.getLaneCenter(0), -1600, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(1), -1600, 50, 100, 2, "DUMMY"),
-            // row6
-            new Car(road.getLaneCenter(0), -1950, 50, 100, 2, "DUMMY"),
-            new Car(road.getLaneCenter(2), -1950, 50, 100, 2, "DUMMY"),
-        };
+        generateTraffic();
 
         // initialize UI
         root.getChildren().add(canvas);
@@ -235,24 +223,47 @@ public class Game extends Application {
 
         // v1 clear and generate new population by mutatuing the brain and reset the position
         // v2 clear old, generate some random and some mutated
-        population = generatePopulation(populationCount);
         NeuralNetwork championBrain = loadBrain();
-        population[0].brain = championBrain;
-        for(int i = (int) populationCount/4; i < populationCount; i++){         
-            population[i].brain.copy(championBrain);
-            population[i].brain.mutate(0.9, linearMutation ? Utils.lerp(0.2,0.8, (double) i/ (double) populationCount) : 0.5);
-            population[i].reset(null ,null);
+        // for(int i = (int) populationCount/4; i < populationCount; i++){         
+            //     population[i].brain.copy(championBrain);
+            //     population[i].brain.mutate(0.9, linearMutation ? Utils.lerp(0.2,0.8, (double) i/ (double) populationCount) : 0.5);
+            //     population[i].reset(null ,null);
+            // }
+            
+        // cross over
+        double secondBestFitness = Double.NEGATIVE_INFINITY;
+        int secondBestCarIndex = -1;
+        
+        for (int i = 0; i < populationCount; i++) {
+            
+            if (i == bestCarIndex) {
+                continue;
+            }
+            
+            if (populationFitness[i] > secondBestFitness) {
+                secondBestFitness = populationFitness[i];
+                secondBestCarIndex = i;
+            }
         }
+        NeuralNetwork secondBestBrain = population[secondBestCarIndex].brain;
+        population = generatePopulation(populationCount);
+        population[0].brain.copy(championBrain);
+        population[1].brain.copy(secondBestBrain);
 
-        //reset traffic
-        for(Car car: traffic){
-            car.reset(null, null);
+        System.out.println(String.format("Best brains are %d with fitness- %f and %d with fitness- %f", bestCarIndex, populationFitness[bestCarIndex], secondBestCarIndex, populationFitness[secondBestCarIndex]));
+        for(int i = (int) populationCount/4; i < populationCount; i++){
+            population[i].brain.crossOver(population[bestCarIndex].brain, population[secondBestCarIndex].brain);
+            population[i].brain.mutate(0.2, linearMutation ? Utils.lerp(0.2,0.8, (double) i/ (double) populationCount) : 0.3);
+            population[i].reset(null, null);
         }
 
         // reset population fitness
         for(int i = 0; i < populationCount; i++){
             populationFitness[i] = 0.0;
         }
+
+        // reset traffic
+        generateTraffic();
 
         // increase generation
         currentGeneration++;
@@ -283,7 +294,7 @@ public class Game extends Application {
         carRewardPointLabel.setText(String.format("Reward Points: %.2f", populationFitness[Arrays.asList(population).indexOf(car)]));
         carIndexLabel.setText(String.format("Car index: %d", Arrays.asList(population).indexOf(car)));
         timeLabel.setText(String.format("Time: %d", framesInGeneration/60));
-        deadCarsLabel.setText(String.format("Dead Cars: Random: %d, Mutated: %d", deadCarRandom, deadCarMutated));
+        deadCarsLabel.setText(String.format("Dead Cars: Random: %d/%d, Mutated: %d/%d", deadCarRandom, populationCount/4 - 1, deadCarMutated, populationCount - populationCount/4));
     }
 
     private Car[] generatePopulation(int N){
@@ -296,7 +307,7 @@ public class Game extends Application {
 
     private void saveBrain(NeuralNetwork brain){
         try {
-            FileOutputStream fileOut = new FileOutputStream("best_brain.ser");
+            FileOutputStream fileOut = new FileOutputStream("optimized_brain.ser");
             ObjectOutputStream out = new ObjectOutputStream(fileOut);
             out.writeObject(brain == null ? bestCar.brain: brain);
             out.close();
@@ -308,7 +319,7 @@ public class Game extends Application {
     }
 
     private NeuralNetwork loadBrain(){
-        String fileName = "best_brain.ser";
+        String fileName = "optimized_brain.ser";
         NeuralNetwork brain = null;
         try {
             if(isSavedBrainAvailable()){
@@ -330,7 +341,7 @@ public class Game extends Application {
     }
 
     private boolean isSavedBrainAvailable(){
-        String fileName = "best_brain.ser";
+        String fileName = "optimized_brain.ser";
         File file = new File(fileName);
         return (file.exists());
     }
@@ -399,6 +410,27 @@ public class Game extends Application {
                 car.overtakeRewarded = false;
                 car.overtakingStartTime = -1;
             }
+        }
+    }
+
+
+    private void generateTraffic(){
+        traffic.clear();
+        int separation = 300;
+        int ySep = separation;
+        List<Integer> pool = new ArrayList<>();
+        pool.add(0);
+        pool.add(1);
+        pool.add(2);
+        Random rand =  new Random();
+
+        for(int i = 0; i < rowsOfTraffic; i++){
+            int numberOfCars = Math.random() > 0.5 ? 2 : 1;
+            Collections.shuffle(pool, rand);
+            for(int j = 0; j < numberOfCars; j++){
+                traffic.add(new Car(road.getLaneCenter(pool.get(j)), -1 * ySep, 50, 100, 2, "DUMMY"));
+            }
+            ySep += separation;
         }
     }
 

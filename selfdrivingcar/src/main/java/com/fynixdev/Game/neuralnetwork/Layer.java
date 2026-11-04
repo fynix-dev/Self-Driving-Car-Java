@@ -35,4 +35,10 @@ public class Layer implements java.io.Serializable {
         }
     }
 
+    public void crossOver(Layer parent1, Layer parent2) {
+        for (int i = 0; i < neurons.length; i++) {
+            neurons[i].crossOver(parent1.neurons[i].weights, parent2.neurons[i].weights, parent1.neurons[i].bias, parent2.neurons[i].bias);
+        }
+    }
+
 }

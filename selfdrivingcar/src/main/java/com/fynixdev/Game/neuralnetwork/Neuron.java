@@ -28,25 +28,6 @@ public class Neuron implements java.io.Serializable {
         return output;
     }
 
-    // public void mutate(double mutationRate){
-    //     for(int i = 0; i < weights.length; i++){
-    //         weights[i] = Utils.lerp(weights[i], Math.random() * 2 - 1, mutationRate);
-    //     }
-    //     bias = Utils.lerp(bias, Math.random() * 2 - 1, mutationRate);
-    // }
-
-    // public void mutate(double mutationRate) {
-    //     for (int i = 0; i < weights.length; i++) {
-    //         if (Math.random() < mutationRate) {
-    //             weights[i] += Math.random() * 0.4 - 0.2;
-    //         }
-    //     }
-
-    //     if (Math.random() < mutationRate) {
-    //         bias += Math.random() * 0.4 - 0.2;
-    //     }
-    // }
-
     public void mutate(double mutationRate, double mutationStrength) {
         for (int i = 0; i < weights.length; i++) {
             if (Math.random() < mutationRate) {
@@ -63,6 +44,13 @@ public class Neuron implements java.io.Serializable {
         this.weights = Arrays.copyOf(other.weights, other.weights.length);
         this.bias = other.bias;
         this.activationFunction = other.activationFunction;
+    }
+
+    public void crossOver(double[] parent1Weights, double[] parent2Weights, double parent1Bias, double parent2Bias) {
+        for (int i = 0; i < weights.length; i++) {
+            weights[i] = Math.random() < 0.5 ? parent1Weights[i] : parent2Weights[i];
+        }
+        bias = Math.random() < 0.5 ? parent1Bias : parent2Bias;
     }
 
 }

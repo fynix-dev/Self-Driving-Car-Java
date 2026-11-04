@@ -100,7 +100,7 @@ public class Sensor {
 
     // }
 
-    private void getReadings(List<List<Utils.Point>> borders, Car[] traffic) {
+    private void getReadings(List<List<Utils.Point>> borders, List<Car> traffic) {
 
         readings.clear();
         trafficInputs.clear();
@@ -198,7 +198,7 @@ public class Sensor {
         }
     }
 
-    public void update(List<List<Utils.Point>> borders, Car[] traffic){
+    public void update(List<List<Utils.Point>> borders, List<Car> traffic){
         castRays();
         getReadings(borders, traffic);
     }
