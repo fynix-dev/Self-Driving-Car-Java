@@ -20,6 +20,7 @@ cat > .gitignore << 'EOF'
 *.zip
 *.tar.gz
 *.rar
+*.ser
 
 # virtual machine crash logs
 hs_err_pid*
