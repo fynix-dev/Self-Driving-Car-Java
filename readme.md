@@ -10,7 +10,7 @@ This project was built as a hands-on experiment to understand Neural Networks, G
 
 <!-- Add your gameplay GIF or screenshot here -->
 
-![Self Driving Car Simulation](Media/preview.gif)
+![Self Driving Car Simulation](/SelfDrivingCarDemo.gif)
 
 ## ✨ Features
 
@@ -87,21 +87,6 @@ A trained brain may perform well in the traffic scenarios it encountered during 
 For example, a brain that learned to overtake using the left lane may not immediately adapt when the left lane is blocked and only the right lane is available.
 
 This is an experimental learning project, not a fully generalized autonomous driving system. Different traffic configurations may require additional training and improvements to the learning process.
-
-## 📁 Project Structure
-
-```text
-Self-Driving-Car-Java/
-│
-├── Media/
-│
-├── selfdrivingcar/
-│   └── Source code and project files
-│
-├── best_brain.ser
-│
-└── README.md
-```
 
 ## 🎯 Learning Objectives
 
